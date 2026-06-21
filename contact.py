@@ -1,287 +1,192 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
 import json
 import os
-
-# ================= COLORS =================
-GREEN = "\033[92m"
-RED = "\033[91m"
-YELLOW = "\033[93m"
-BLUE = "\033[94m"
-CYAN = "\033[96m"
-MAGENTA = "\033[95m"
-RESET = "\033[0m"
 
 FILE_NAME = "contacts.json"
 
 
-# ================= DATABASE =================
+# ---------- LOAD ----------
 def load_contacts():
     if os.path.exists(FILE_NAME):
-        with open(FILE_NAME, "r") as file:
-            return json.load(file)
+        try:
+            with open(FILE_NAME, "r") as f:
+                data = json.load(f)
+
+                # SAFE FIX (id missing na add pannum)
+                for i, c in enumerate(data):
+                    if "id" not in c:
+                        c["id"] = f"C{i+1:03d}"
+                return data
+
+        except:
+            return []
     return []
 
 
-def save_contacts(contacts):
-    with open(FILE_NAME, "w") as file:
-        json.dump(contacts, file, indent=4)
+# ---------- SAVE ----------
+def save_contacts():
+    with open(FILE_NAME, "w") as f:
+        json.dump(contacts, f, indent=4)
 
 
-# ================= DASHBOARD =================
-def dashboard(contacts):
-    total = len(contacts)
-    favorites = sum(1 for c in contacts if c["favorite"])
-
-    print(f"\n{CYAN}{'='*65}")
-    print("📒 CONTACT HUB PRO")
-    print(f"{'='*65}")
-    print(f"👥 Total Contacts : {total}")
-    print(f"⭐ Favorite Contacts : {favorites}")
-    print(f"{'='*65}{RESET}")
-
-
-# ================= ID GENERATOR =================
-def generate_contact_id(contacts):
+def generate_id():
     return f"C{len(contacts)+1:03d}"
 
 
-# ================= ADD CONTACT =================
-def add_contact(contacts):
+# ---------- REFRESH ----------
+def refresh_table(data=None):
+    tree.delete(*tree.get_children())
 
-    print(f"\n{GREEN}ADD NEW CONTACT{RESET}")
+    show = data if data else contacts
 
-    name = input("Name       : ")
-    phone = input("Phone      : ")
-    email = input("Email      : ")
-    address = input("Address    : ")
+    for c in show:
+        tree.insert("", "end", values=(
+            c.get("id", ""),
+            c.get("name", ""),
+            c.get("phone", ""),
+            c.get("email", ""),
+            "⭐" if c.get("favorite") else ""
+        ))
 
-    favorite = input(
-        "Favorite Contact? (yes/no): "
-    ).lower()
-
-    contact = {
-        "id": generate_contact_id(contacts),
-        "name": name,
-        "phone": phone,
-        "email": email,
-        "address": address,
-        "favorite": favorite == "yes"
-    }
-
-    contacts.append(contact)
-    save_contacts(contacts)
-
-    print(f"\n{GREEN}✓ Contact Added Successfully!{RESET}")
+    update_dashboard()
 
 
-# ================= VIEW CONTACTS =================
-def view_contacts(contacts):
+def update_dashboard():
+    lbl_total.config(text=f"Total Contacts: {len(contacts)}")
+    lbl_fav.config(text=f"Favorites: {sum(1 for c in contacts if c.get('favorite'))}")
 
-    if not contacts:
-        print(f"\n{RED}No Contacts Found!{RESET}")
+
+# ---------- ADD ----------
+def add_contact():
+    def save_new():
+        contacts.append({
+            "id": generate_id(),
+            "name": e_name.get(),
+            "phone": e_phone.get(),
+            "email": e_email.get(),
+            "address": e_address.get(),
+            "favorite": fav_var.get()
+        })
+
+        save_contacts()
+        refresh_table()
+        win.destroy()
+
+    win = tk.Toplevel(root)
+    win.title("Add Contact")
+
+    tk.Label(win, text="Name").grid(row=0, column=0)
+    tk.Label(win, text="Phone").grid(row=1, column=0)
+    tk.Label(win, text="Email").grid(row=2, column=0)
+    tk.Label(win, text="Address").grid(row=3, column=0)
+
+    e_name = tk.Entry(win)
+    e_phone = tk.Entry(win)
+    e_email = tk.Entry(win)
+    e_address = tk.Entry(win)
+
+    e_name.grid(row=0, column=1)
+    e_phone.grid(row=1, column=1)
+    e_email.grid(row=2, column=1)
+    e_address.grid(row=3, column=1)
+
+    fav_var = tk.BooleanVar()
+    tk.Checkbutton(win, text="Favorite", variable=fav_var).grid(row=4, columnspan=2)
+
+    tk.Button(win, text="Save", command=save_new).grid(row=5, columnspan=2)
+
+
+# ---------- DELETE ----------
+def delete_contact():
+    sel = tree.focus()
+    if not sel:
+        messagebox.showerror("Error", "Select contact")
         return
 
-    print(f"\n{BLUE}{'-'*85}")
-    print(
-        f"{'ID':<8}{'NAME':<20}{'PHONE':<18}{'FAVOURITE':<12}"
-    )
-    print(f"{'-'*85}{RESET}")
+    cid = tree.item(sel)["values"][0]
 
-    for contact in contacts:
-
-        fav = "⭐" if contact["favorite"] else "-"
-
-        print(
-            f"{contact['id']:<8}"
-            f"{contact['name']:<20}"
-            f"{contact['phone']:<18}"
-            f"{fav:<12}"
-        )
-
-
-# ================= SEARCH =================
-def search_contact(contacts):
-
-    keyword = input(
-        "\nEnter Name / Phone / Email: "
-    ).lower()
-
-    found = False
-
-    for contact in contacts:
-
-        if (
-            keyword in contact["name"].lower()
-            or keyword in contact["phone"]
-            or keyword in contact["email"].lower()
-        ):
-
-            print(f"\n{YELLOW}{'-'*40}")
-            print("CONTACT FOUND")
-            print(f"{'-'*40}{RESET}")
-
-            print("ID       :", contact["id"])
-            print("Name     :", contact["name"])
-            print("Phone    :", contact["phone"])
-            print("Email    :", contact["email"])
-            print("Address  :", contact["address"])
-            print(
-                "Favorite :",
-                "Yes ⭐" if contact["favorite"] else "No"
-            )
-
-            found = True
-
-    if not found:
-        print(f"\n{RED}✗ Contact Not Found!{RESET}")
-
-
-# ================= UPDATE =================
-def update_contact(contacts):
-
-    contact_id = input(
-        "\nEnter Contact ID to Update: "
-    ).upper()
-
-    for contact in contacts:
-
-        if contact["id"] == contact_id:
-
-            print(f"\n{CYAN}Enter New Details{RESET}")
-
-            contact["name"] = (
-                input(
-                    f"Name ({contact['name']}): "
-                )
-                or contact["name"]
-            )
-
-            contact["phone"] = (
-                input(
-                    f"Phone ({contact['phone']}): "
-                )
-                or contact["phone"]
-            )
-
-            contact["email"] = (
-                input(
-                    f"Email ({contact['email']}): "
-                )
-                or contact["email"]
-            )
-
-            contact["address"] = (
-                input(
-                    f"Address ({contact['address']}): "
-                )
-                or contact["address"]
-            )
-
-            save_contacts(contacts)
-
-            print(
-                f"\n{GREEN}✓ Contact Updated Successfully!{RESET}"
-            )
-            return
-
-    print(f"\n{RED}✗ Contact Not Found!{RESET}")
-
-
-# ================= DELETE =================
-def delete_contact(contacts):
-
-    contact_id = input(
-        "\nEnter Contact ID to Delete: "
-    ).upper()
-
-    for contact in contacts:
-
-        if contact["id"] == contact_id:
-
-            contacts.remove(contact)
-
-            save_contacts(contacts)
-
-            print(
-                f"\n{GREEN}✓ Contact Deleted Successfully!{RESET}"
-            )
-            return
-
-    print(f"\n{RED}✗ Contact Not Found!{RESET}")
-
-
-# ================= FAVORITES =================
-def view_favorites(contacts):
-
-    favorites = [
-        c for c in contacts if c["favorite"]
-    ]
-
-    if not favorites:
-        print(
-            f"\n{RED}No Favorite Contacts Found!{RESET}"
-        )
-        return
-
-    print(f"\n{MAGENTA}⭐ FAVORITE CONTACTS{RESET}")
-
-    for contact in favorites:
-
-        print(
-            f"{contact['id']} - "
-            f"{contact['name']} "
-            f"({contact['phone']})"
-        )
-
-
-# ================= MAIN =================
-def main():
-
-    contacts = load_contacts()
-
-    while True:
-
-        dashboard(contacts)
-
-        print(f"{GREEN}1. Add Contact{RESET}")
-        print(f"{BLUE}2. View Contacts{RESET}")
-        print(f"{YELLOW}3. Search Contact{RESET}")
-        print(f"{CYAN}4. Update Contact{RESET}")
-        print(f"{MAGENTA}5. Delete Contact{RESET}")
-        print(f"{GREEN}6. Favorite Contacts{RESET}")
-        print(f"{RED}7. Exit{RESET}")
-
-        choice = input(
-            "\nEnter Choice (1-7): "
-        )
-
-        if choice == "1":
-            add_contact(contacts)
-
-        elif choice == "2":
-            view_contacts(contacts)
-
-        elif choice == "3":
-            search_contact(contacts)
-
-        elif choice == "4":
-            update_contact(contacts)
-
-        elif choice == "5":
-            delete_contact(contacts)
-
-        elif choice == "6":
-            view_favorites(contacts)
-
-        elif choice == "7":
-            print(
-                f"\n{GREEN}Thank You For Using Contact Hub Pro!{RESET}"
-            )
+    for c in contacts:
+        if c.get("id") == cid:
+            contacts.remove(c)
             break
 
-        else:
-            print(
-                f"\n{RED}Invalid Choice! Try Again.{RESET}"
-            )
+    save_contacts()
+    refresh_table()
 
 
-main()
+# ---------- SEARCH ----------
+def search_contact():
+    key = search_entry.get().lower()
+
+    result = [
+        c for c in contacts
+        if key in c.get("name","").lower()
+        or key in c.get("phone","")
+        or key in c.get("email","").lower()
+    ]
+
+    refresh_table(result)
+
+
+def show_all():
+    refresh_table()
+
+
+def show_fav():
+    refresh_table([c for c in contacts if c.get("favorite")])
+
+
+# ---------- UI ----------
+root = tk.Tk()
+root.title("Contact Hub Pro")
+root.geometry("900x550")
+
+contacts = load_contacts()
+
+
+# DASHBOARD
+dash = tk.Frame(root)
+dash.pack(fill="x")
+
+lbl_total = tk.Label(dash, text="")
+lbl_total.pack(side="left", padx=10)
+
+lbl_fav = tk.Label(dash, text="")
+lbl_fav.pack(side="left", padx=10)
+
+
+# SEARCH
+top = tk.Frame(root)
+top.pack(fill="x", pady=5)
+
+search_entry = tk.Entry(top, width=40)
+search_entry.pack(side="left", padx=10)
+
+tk.Button(top, text="Search", command=search_contact).pack(side="left")
+tk.Button(top, text="All", command=show_all).pack(side="left")
+tk.Button(top, text="Fav", command=show_fav).pack(side="left")
+
+
+# TABLE
+cols = ("ID", "Name", "Phone", "Email", "Fav")
+
+tree = ttk.Treeview(root, columns=cols, show="headings")
+
+for c in cols:
+    tree.heading(c, text=c)
+    tree.column(c, width=150)
+
+tree.pack(fill="both", expand=True)
+
+
+# BUTTONS
+btn = tk.Frame(root)
+btn.pack(pady=10)
+
+tk.Button(btn, text="Add", command=add_contact).pack(side="left", padx=10)
+tk.Button(btn, text="Delete", command=delete_contact).pack(side="left", padx=10)
+
+
+refresh_table()
+root.mainloop()
